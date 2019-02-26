@@ -8,7 +8,7 @@ An easy to understand and open source implementation of Inverse Kinematics for U
 <br>
 <b>UPDATE</b> :<br>
 As, the algorithm that the plugin follows make changes in the hierarchy, a reset button is added to revert back to original scene.
-<br>
+<br><br><br>
 <b>Steps to use plugin</b><br>
 <ol>
   <li>Download the IKSolver script in your Assets</li>
