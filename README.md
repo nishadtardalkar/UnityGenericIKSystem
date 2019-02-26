@@ -1,7 +1,7 @@
 # UnityIKSystem
 An easy to understand and open source implementation of Inverse Kinematics for Unity 3D
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/XFs8cucJ764/0.jpg)](https://www.youtube.com/watch?v=XFs8cucJ764)
+[![FAILED TO LOAD IMAGE](https://img.youtube.com/vi/4FMOBhg3xaM/0.jpg)](https://www.youtube.com/watch?v=4FMOBhg3xaM)
 
 <br>
 <b>Steps to use plugin</b><br>
