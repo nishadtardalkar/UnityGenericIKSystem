@@ -7,6 +7,9 @@ An easy to understand and open source implementation of Inverse Kinematics for U
 <br>
 <br>
 <b>UPDATE</b> :<br>
+The lengths are now calculated automatically, no need to manually type them.
+<br><br><br>
+<b>UPDATE</b> :<br>
 As, the algorithm that the plugin follows make changes in the hierarchy, a reset button is added to revert back to original scene.
 <br><br><br>
 <b>Steps to use plugin</b><br>
