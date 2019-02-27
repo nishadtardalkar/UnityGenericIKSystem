@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEditor;
 using UnityEngine;
 
-[CustomEditor(typeof(IKSolver))]
+[CustomEditor(typeof(IKSolver)), CanEditMultipleObjects]
 public class E_IKSolver : Editor
 {
     public override void OnInspectorGUI()
@@ -34,6 +34,7 @@ public class IKSolver : MonoBehaviour
     public class Bone
     {
         public Transform bone;
+        [HideInInspector]
         public float length;
         [HideInInspector]
         public Vector3 origPos, origScale;
@@ -66,7 +67,7 @@ public class IKSolver : MonoBehaviour
     void Start()
     {
         lastTargetPosition = transform.position;
-        if (Application.isPlaying)
+        if (Application.isPlaying && !editorInitialized)
         {
             Initialize();
         }
@@ -118,6 +119,7 @@ public class IKSolver : MonoBehaviour
         bones[0].origPos = bones[0].bone.position;
         bones[0].origScale = bones[0].bone.localScale;
         bones[0].origRot = bones[0].bone.rotation;
+        bones[0].length = Vector3.Distance(endPointOfLastBone.position, bones[0].bone.position);
         GameObject g = new GameObject();
         g.name = bones[0].bone.name;
         g.transform.position = bones[0].bone.position;
@@ -130,6 +132,7 @@ public class IKSolver : MonoBehaviour
             bones[i].origPos = bones[i].bone.position;
             bones[i].origScale = bones[i].bone.localScale;
             bones[i].origRot = bones[i].bone.rotation;
+            bones[i].length = Vector3.Distance(bones[i - 1].bone.position, bones[i].bone.position);
             g = new GameObject();
             g.name = bones[i].bone.name;
             g.transform.position = bones[i].bone.position;
