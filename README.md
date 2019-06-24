@@ -26,4 +26,5 @@ As, the algorithm that the plugin follows make changes in the hierarchy, a reset
   <li>Enable EditMode option if you want to test IK in Unity Scene window</li>
 </ol>
 
+<b>License : MIT</b>
 <b>Enjoy...</b>
