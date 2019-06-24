@@ -27,4 +27,4 @@ As, the algorithm that the plugin follows make changes in the hierarchy, a reset
 </ol>
 
 <b>License : Open Source. Free to modify. Free to use.</b><br>
-<b>Enjoy...</b>
+<b>Work Work...</b>
