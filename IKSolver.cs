@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 
 [CustomEditor(typeof(IKSolver)), CanEditMultipleObjects]
-public class E_IKSolver : Editor
+public class E_IKSolverV2 : Editor
 {
     public override void OnInspectorGUI()
     {
@@ -24,6 +24,14 @@ public class E_IKSolver : Editor
                 solver.ResetHierarchy();
             }
         }
+        else
+        {
+            if (GUILayout.Button("Start Tracking"))
+            {
+                solver.Initialize();
+                solver.enable = true;
+            }
+        }
     }
 }
 
@@ -34,10 +42,16 @@ public class IKSolver : MonoBehaviour
     public class Bone
     {
         public Transform bone;
+        public Transform pole;
+        public Vector2 rollContraints;
+        public Vector2 angleConstraints;
+
+        [HideInInspector]
+        public Transform endPoint;
         [HideInInspector]
         public float length;
         [HideInInspector]
-        public Vector3 origPos, origScale;
+        public Vector3 origPos;
         [HideInInspector]
         public Quaternion origRot;
     }
@@ -50,12 +64,11 @@ public class IKSolver : MonoBehaviour
     public Transform endPointOfLastBone;
 
     [Header("Settings")]
-    [Tooltip("Bend chain towards this target when target is closer than total chain length... Make sure you place it far than total chain length for better accuracy...")]
-    public Transform poleTarget;
     [Tooltip("More precision...")]
     public int iterations;
 
     [Header("EditMode")]
+    [HideInInspector]
     public bool enable;
 
     [HideInInspector]
@@ -75,36 +88,6 @@ public class IKSolver : MonoBehaviour
 
     void Update()
     {
-        if (Application.isEditor && enable && !editorInitialized)
-        {
-            if (enable)
-            {
-                if (bones.Length == 0)
-                {
-                    enable = false;
-                    return;
-                }
-                for (int i = 0; i < bones.Length; i++)
-                {
-                    if (bones[i].bone == null)
-                    {
-                        enable = false;
-                        return;
-                    }
-                }
-                if (endPointOfLastBone == null)
-                {
-                    enable = false;
-                    return;
-                }
-                if (poleTarget == null)
-                {
-                    enable = false;
-                    return;
-                }
-            }
-            Initialize();
-        }
         if (lastTargetPosition != transform.position)
         {
             if (Application.isPlaying || (Application.isEditor && enable))
@@ -114,32 +97,18 @@ public class IKSolver : MonoBehaviour
         }
     }
 
-    void Initialize()
+    public void Initialize()
     {
-        bones[0].origPos = bones[0].bone.position;
-        bones[0].origScale = bones[0].bone.localScale;
-        bones[0].origRot = bones[0].bone.rotation;
         bones[0].length = Vector3.Distance(endPointOfLastBone.position, bones[0].bone.position);
-        GameObject g = new GameObject();
-        g.name = bones[0].bone.name;
-        g.transform.position = bones[0].bone.position;
-        g.transform.up = -(endPointOfLastBone.position - bones[0].bone.position);
-        g.transform.parent = bones[0].bone.parent;
-        bones[0].bone.parent = g.transform;
-        bones[0].bone = g.transform;
+        bones[0].origPos = bones[0].bone.position;
+        bones[0].origRot = bones[0].bone.rotation;
+        bones[0].endPoint = endPointOfLastBone;
         for (int i = 1; i < bones.Length; i++)
         {
             bones[i].origPos = bones[i].bone.position;
-            bones[i].origScale = bones[i].bone.localScale;
             bones[i].origRot = bones[i].bone.rotation;
             bones[i].length = Vector3.Distance(bones[i - 1].bone.position, bones[i].bone.position);
-            g = new GameObject();
-            g.name = bones[i].bone.name;
-            g.transform.position = bones[i].bone.position;
-            g.transform.up = -(bones[i - 1].bone.position - bones[i].bone.position);
-            g.transform.parent = bones[i].bone.parent;
-            bones[i].bone.parent = g.transform;
-            bones[i].bone = g.transform;
+            bones[i].endPoint = bones[i - 1].bone;
         }
         editorInitialized = true;
         needResetOption = true;
@@ -147,29 +116,99 @@ public class IKSolver : MonoBehaviour
 
     void Solve()
     {
-        Vector3 rootPoint = bones[bones.Length - 1].bone.position;
-        bones[bones.Length - 1].bone.up = -(poleTarget.position - bones[bones.Length - 1].bone.position);
-        for (int i = bones.Length - 2; i >= 0; i--)
+        /*
+         * Can be used to get consistent results at cost of computation...
+         * May also be NOT used to get variations...
+        for (int i = 0; i < bones.Length; i++)
         {
-            bones[i].bone.position = bones[i + 1].bone.position + (-bones[i + 1].bone.up * bones[i + 1].length);
-            bones[i].bone.up = -(poleTarget.position - bones[i].bone.position);
+            bones[i].bone.position = bones[i].origPos;
+            bones[i].bone.rotation = bones[i].origRot;
         }
+        */
+
+        Vector3 rootPoint = bones[bones.Length - 1].bone.position;
+        Vector3 dir;
+        Quaternion forwRot;
+
+        // Poles
+        for (int j = 1; j < bones.Length; j++)
+        {
+            Vector3 to = bones[j - 1].endPoint.position - bones[j].bone.position;
+            Vector3 norm = Vector3.Cross(bones[j].pole.position - bones[j].bone.position, to);
+            Vector3 cast = Vector3.Cross(bones[j - 1].endPoint.position - bones[j].bone.position, norm).normalized;
+            float d = (bones[j - 1].endPoint.position - bones[j].bone.position).magnitude;
+            float y = (bones[j].length * bones[j].length + d * d - bones[j - 1].length * bones[j - 1].length) / (2f * d);
+            d = (float)Math.Sqrt(Mathf.Abs(bones[j].length * bones[j].length - y * y));
+            Vector3 newPos = bones[j].bone.position + to.normalized * y + cast * d;
+            dir = (newPos - bones[j].bone.position).normalized;
+            forwRot = Quaternion.FromToRotation(bones[j].bone.up, dir);
+            bones[j].bone.rotation = Quaternion.LookRotation(forwRot * bones[j].bone.forward, dir);
+            bones[j - 1].bone.position = newPos;
+            dir = (bones[j - 1].endPoint.position - bones[j - 1].bone.position).normalized;
+            forwRot = Quaternion.FromToRotation(bones[j - 1].bone.up, dir);
+            bones[j - 1].bone.rotation = Quaternion.LookRotation(forwRot * bones[j - 1].bone.forward, dir);
+        }
+
         for (int i = 0; i < iterations; i++)
         {
-            bones[0].bone.up = -(transform.position - bones[0].bone.position);
-            bones[0].bone.position = transform.position - (-bones[0].bone.up * bones[0].length);
+            // Base
+            dir = (transform.position - bones[0].bone.position).normalized;
+            forwRot = Quaternion.FromToRotation(bones[0].bone.up, dir);
+            bones[0].bone.rotation = Quaternion.LookRotation(forwRot * bones[0].bone.forward, dir);
+            bones[0].bone.position = transform.position - (dir * bones[0].length);
             for (int j = 1; j < bones.Length; j++)
             {
-                bones[j].bone.up = -(bones[j - 1].bone.position - bones[j].bone.position);
-                bones[j].bone.position = bones[j - 1].bone.position - (-bones[j].bone.up * bones[j].length);
+                Quaternion childRotBackup = bones[j - 1].bone.rotation;
+                Vector3 childPosBackup = bones[j - 1].bone.position;
+                dir = (bones[j - 1].bone.position - bones[j].bone.position).normalized;
+                forwRot = Quaternion.FromToRotation(bones[j].bone.up, dir);
+                bones[j].bone.rotation = Quaternion.LookRotation(forwRot * bones[j].bone.forward, dir);
+                bones[j].bone.position = childPosBackup - (dir * bones[j].length);
+                bones[j - 1].bone.rotation = childRotBackup;
+                bones[j - 1].bone.position = childPosBackup;
+            }
+
+            // Step Angle Constraints
+            for (int j = 1; j < bones.Length; j++)
+            {
+                Vector3 endPoint = bones[j - 1].endPoint.position;
+                Vector3 parentUp = bones[j].bone.up;
+                Vector3 childUp = bones[j - 1].bone.up;
+                Vector3 norm = Vector3.Cross(parentUp, childUp).normalized;
+                float angle = Vector3.SignedAngle(parentUp, childUp, norm);
+                angle = Mathf.Clamp(angle, bones[j - 1].angleConstraints.x, bones[j - 1].angleConstraints.y);
+                forwRot = Quaternion.FromToRotation(bones[j - 1].bone.up, Quaternion.AngleAxis(angle, norm) * bones[j].bone.up);
+                bones[j - 1].bone.rotation = Quaternion.LookRotation(forwRot * bones[j - 1].bone.forward, Quaternion.AngleAxis(angle, norm) * bones[j].bone.up);
+                bones[j - 1].bone.position += endPoint - bones[j - 1].endPoint.position;
             }
 
             bones[bones.Length - 1].bone.position = rootPoint;
-            for (int j = bones.Length - 2; j >= 0; j--)
-            {
-                bones[j].bone.position = bones[j + 1].bone.position + (-bones[j + 1].bone.up * bones[j + 1].length);
-            }
         }
+
+        // Clamp roll - TBE
+        for (int j = 0; j < bones.Length - 1; j++)
+        {
+            Quaternion ft = Quaternion.FromToRotation(bones[j].bone.up, bones[j + 1].bone.up);
+            Quaternion rft = Quaternion.FromToRotation(bones[j + 1].bone.up, bones[j].bone.up);
+            bones[j].bone.rotation = ft * bones[j].bone.rotation;
+            Vector3 eulers = bones[j].bone.localRotation.eulerAngles;
+            eulers.y = Mathf.Clamp(eulers.y, bones[j].rollContraints.x, bones[j].rollContraints.y);
+            bones[j].bone.localRotation = Quaternion.Euler(eulers);
+            bones[j].bone.rotation = rft * bones[j].bone.rotation;
+        }
+
+        // Final Angle Constraints
+        for (int j = 1; j < bones.Length; j++)
+        {
+            Vector3 parentUp = bones[j].bone.up;
+            Vector3 childUp = bones[j - 1].bone.up;
+            Vector3 norm = Vector3.Cross(parentUp, childUp).normalized;
+            float angle = Vector3.SignedAngle(parentUp, childUp, norm);
+            angle = Mathf.Clamp(angle, bones[j - 1].angleConstraints.x, bones[j - 1].angleConstraints.y);
+            forwRot = Quaternion.FromToRotation(bones[j - 1].bone.up, Quaternion.AngleAxis(angle, norm) * bones[j].bone.up);
+            bones[j - 1].bone.rotation = Quaternion.LookRotation(forwRot * bones[j - 1].bone.forward, Quaternion.AngleAxis(angle, norm) * bones[j].bone.up);
+        }
+
         lastTargetPosition = transform.position;
     }
 
@@ -178,22 +217,10 @@ public class IKSolver : MonoBehaviour
     /// </summary>
     public void ResetHierarchy()
     {
-        for (int i = 0; i < bones.Length; i++)
+        for (int i = bones.Length - 1; i >= 0; i--)
         {
-            Transform t = bones[i].bone.GetChild(0);
-            bones[i].bone.GetChild(0).parent = bones[i].bone.parent;
-            if (Application.isPlaying)
-            {
-                Destroy(bones[i].bone.gameObject);
-            }
-            else
-            {
-                DestroyImmediate(bones[i].bone.gameObject);
-            }
-            bones[i].bone = t;
-            t.position = bones[i].origPos;
-            t.rotation = bones[i].origRot;
-            t.localScale = bones[i].origScale;
+            bones[i].bone.position = bones[i].origPos;
+            bones[i].bone.rotation = bones[i].origRot;
         }
         lastTargetPosition = Vector3.zero;
         enable = false;
