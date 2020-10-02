@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 
 [CustomEditor(typeof(IKSolver)), CanEditMultipleObjects]
-public class E_IKSolverV2 : Editor
+public class E_IKSolver : Editor
 {
     public override void OnInspectorGUI()
     {
